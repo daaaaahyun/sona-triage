@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SONA-TRIAGE — AI-Guided Portable Ultrasound Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#080d14;
+    --bezel:#0e1622;
+    --bezel-edge:#1c2838;
+    --panel:#101a26;
+    --panel-2:#0c141e;
+    --border:#1e2c3d;
+    --text:#e7edf4;
+    --dim:#8398ac;
+    --dim-2:#5a6d81;
+    --cyan:#3fd3e0;
+    --cyan-dim:#1b5a63;
+    --amber:#e2b23c;
+    --red:#e05a4e;
+    --green:#49b26a;
+    --mono:'IBM Plex Mono', monospace;
+    --sans:'Inter', sans-serif;
+    --display:'Space Grotesk', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  ::selection{background:var(--cyan);color:#04141a;}
+
+  .wrap{max-width:1280px;margin:0 auto;padding:20px 20px 60px;}
+
+  /* ---------- Header ---------- */
+  header{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:flex-end;
+    border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:18px;}
+  .brand{display:flex;flex-direction:column;gap:4px;}
+  .brand .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--cyan);text-transform:uppercase;}
+  .brand h1{font-family:var(--display);font-size:26px;margin:0;font-weight:700;letter-spacing:-0.01em;}
+  .brand p{margin:0;color:var(--dim);font-size:13px;max-width:520px;}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  select, .pillbtn{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);
+    font-family:var(--mono);font-size:12px;padding:8px 10px;border-radius:6px;cursor:pointer;
+  }
+  select:focus, .pillbtn:focus{outline:2px solid var(--cyan);outline-offset:1px;}
+  .pillbtn.active{border-color:var(--cyan);color:var(--cyan);}
+
+  .rolehint{font-size:12px;color:var(--dim-2);margin:6px 0 0;font-style:italic;}
+
+  /* ---------- Device bezel (signature element) ---------- */
+  .device{
+    background:linear-gradient(180deg,var(--bezel),#0a1119);
+    border:1px solid var(--bezel-edge);
+    border-radius:22px;
+    padding:18px;
+    box-shadow:0 0 0 1px #000 inset, 0 30px 60px -30px rgba(0,0,0,.8);
+    position:relative;
+  }
+  .device::before{ /* screws */
+    content:"";position:absolute;inset:8px;border:1px dashed rgba(255,255,255,.03);border-radius:16px;pointer-events:none;
+  }
+  .device-top{display:flex;justify-content:space-between;align-items:center;padding:2px 8px 14px;font-family:var(--mono);font-size:11px;color:var(--dim-2);letter-spacing:.08em;}
+  .status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px;background:var(--green);box-shadow:0 0 6px var(--green);}
+  .status-dot.off{background:var(--dim-2);box-shadow:none;}
+
+  .grid{display:grid;grid-template-columns: 300px 1fr 300px;gap:14px;}
+  @media (max-width:980px){ .grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;
+  }
+  .panel h2{
+    font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--cyan);
+    margin:0 0 10px;display:flex;align-items:center;gap:8px;
+  }
+  .panel h2 .n{color:var(--dim-2);}
+
+  /* ---------- Probe positioning (left) ---------- */
+  .torso-wrap{position:relative;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  canvas#torso{display:block;width:100%;height:auto;cursor:grab;touch-action:none;}
+  .slider-row{margin-top:10px;}
+  .slider-row label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:4px;}
+  .slider-row input[type=range]{width:100%;accent-color:var(--cyan);}
+
+  /* ---------- Center: ultrasound viewport ---------- */
+  .viewport-wrap{position:relative;}
+  canvas#scan{display:block;width:100%;height:auto;background:#010305;border-radius:10px;border:1px solid var(--border);}
+  .guidance-banner{
+    margin-top:12px;background:var(--panel-2);border:1px solid var(--cyan-dim);border-left:4px solid var(--cyan);
+    border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  }
+  .guidance-banner .txt{font-family:var(--mono);font-size:14px;color:var(--cyan);}
+  .guidance-banner .sub{font-family:var(--sans);font-size:11px;color:var(--dim-2);margin-top:2px;}
+  .speak-btn{background:none;border:1px solid var(--cyan-dim);color:var(--cyan);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;}
+  .speak-btn:hover{background:rgba(63,211,224,.08);}
+
+  .quality-row{display:flex;align-items:center;gap:10px;margin-top:12px;}
+  .quality-row .label{font-family:var(--mono);font-size:11px;color:var(--dim);width:110px;}
+  .meter{flex:1;height:8px;border-radius:4px;background:var(--panel-2);border:1px solid var(--border);overflow:hidden;}
+  .meter > div{height:100%;border-radius:4px;transition:width .15s linear, background .3s;}
+  .quality-val{font-family:var(--mono);font-size:12px;width:42px;text-align:right;color:var(--dim);}
+
+  .capture-row{display:flex;gap:10px;margin-top:14px;align-items:center;flex-wrap:wrap;}
+  .capture-btn{
+    flex:1;padding:12px 16px;border-radius:8px;border:1px solid var(--cyan);background:var(--cyan);color:#04141a;
+    font-family:var(--mono);font-weight:600;letter-spacing:.04em;cursor:pointer;font-size:13px;text-transform:uppercase;
+    transition:opacity .2s;
+  }
+  .capture-btn:disabled{opacity:.35;cursor:not-allowed;background:transparent;color:var(--dim-2);border-color:var(--border);}
+  .capture-note{font-family:var(--mono);font-size:11px;color:var(--dim-2);}
+
+  /* ---------- Right: telemetry ---------- */
+  .kv{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;padding:6px 0;border-bottom:1px dashed var(--border);}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--dim);}
+  .kv .v{color:var(--text);}
+  .landmark{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 0;color:var(--dim);}
+  .landmark .dot{width:6px;height:6px;border-radius:50%;background:var(--dim-2);}
+  .landmark.on{color:var(--text);}
+  .landmark.on .dot{background:var(--green);box-shadow:0 0 5px var(--green);}
+
+  .tech-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;
+    background:var(--panel-2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;color:var(--dim);margin:3px 4px 0 0;}
+
+  /* ---------- Diagnosis / report ---------- */
+  .diag-section{margin-top:16px;}
+  .diag-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media (max-width:760px){ .diag-grid{grid-template-columns:1fr;} }
+
+  .triage-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;font-family:var(--mono);
+    font-weight:600;font-size:13px;text-transform:uppercase;letter-spacing:.04em;}
+  .triage-badge.red{background:rgba(224,90,78,.12);color:var(--red);border:1px solid rgba(224,90,78,.4);}
+  .triage-badge.yellow{background:rgba(226,178,60,.12);color:var(--amber);border:1px solid rgba(226,178,60,.4);}
+  .triage-badge.green{background:rgba(73,178,106,.12);color:var(--green);border:1px solid rgba(73,178,106,.4);}
+
+  .report-box{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:13px;line-height:1.6;color:var(--text);}
+  .report-box .lbl{font-family:var(--mono);font-size:10px;color:var(--cyan);text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:6px;}
+
+  .send-btn{margin-top:10px;background:none;border:1px solid var(--border);color:var(--dim);border-radius:6px;padding:9px 14px;
+    font-family:var(--mono);font-size:12px;cursor:pointer;width:100%;}
+  .send-btn.ready{border-color:var(--green);color:var(--green);}
+  .send-btn:hover.ready{background:rgba(73,178,106,.08);}
+
+  /* ---------- Care pathway ---------- */
+  .pathway{margin-top:20px;}
+  .path-track{display:flex;overflow-x:auto;gap:0;padding-bottom:6px;}
+  .step{flex:1;min-width:110px;text-align:center;position:relative;padding:0 4px;}
+  .step .bar{height:3px;background:var(--border);margin-bottom:10px;position:relative;}
+  .step .bar::after{content:"";position:absolute;left:0;top:0;height:100%;width:0%;background:var(--cyan);transition:width .4s;}
+  .step.active .bar::after, .step.done .bar::after{width:100%;}
+  .step .dot{width:14px;height:14px;border-radius:50%;background:var(--panel-2);border:2px solid var(--border);margin:-15.5px auto 8px;position:relative;z-index:1;}
+  .step.active .dot{border-color:var(--cyan);background:var(--cyan);box-shadow:0 0 8px var(--cyan);}
+  .step.done .dot{border-color:var(--green);background:var(--green);}
+  .step .label{font-family:var(--mono);font-size:10px;color:var(--dim-2);text-transform:uppercase;letter-spacing:.04em;}
+  .step.active .label, .step.done .label{color:var(--text);}
+
+  footer.note{margin-top:26px;font-size:11px;color:var(--dim-2);line-height:1.6;border-top:1px solid var(--border);padding-top:14px;}
+  footer.note strong{color:var(--dim);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="eyebrow">Humanitarian Engineering · Project Prototype</span>
+      <h1>SONA-TRIAGE</h1>
+      <p>AI-Guided Portable Ultrasound for Autonomous Trauma Triage — interactive simulation of the acquisition-to-evacuation pipeline.</p>
+    </div>
+    <div class="controls">
+      <select id="roleSel"></select>
+      <select id="scenSel"></select>
+      <select id="langSel">
+        <option value="en-US">EN — English</option>
+        <option value="ko-KR">KO — 한국어</option>
+        <option value="es-ES">ES — Español</option>
+        <option value="fr-FR">FR — Français</option>
+      </select>
+      <button class="pillbtn active" id="connBtn">● OFFLINE (Edge AI)</button>
+    </div>
+  </header>
+  <p class="rolehint" id="roleHint"></p>
+
+  <div class="device">
+    <div class="device-top">
+      <span><span class="status-dot" id="powerDot"></span>SONA-TRIAGE UNIT · FIELD MODE</span>
+      <span id="clock">00:00:00</span>
+    </div>
+
+    <div class="grid">
+
+      <!-- LEFT: probe positioning -->
+      <div class="panel">
+        <h2>Probe Position <span class="n">/ operator input</span></h2>
+        <div class="torso-wrap">
+          <canvas id="torso" width="300" height="360"></canvas>
+        </div>
+        <div class="slider-row">
+          <label><span>Rotation</span><span id="angleVal">0°</span></label>
+          <input type="range" id="angle" min="0" max="180" value="90">
+        </div>
+        <div class="slider-row">
+          <label><span>Pressure</span><span id="pressVal">0%</span></label>
+          <input type="range" id="pressure" min="0" max="100" value="20">
+        </div>
+        <p style="font-size:11px;color:var(--dim-2);margin-top:10px;line-height:1.5;">
+          Drag the probe onto the torso. This left panel simulates the operator's hand — the AI never touches the probe, it only watches and advises.
+        </p>
+      </div>
+
+      <!-- CENTER: ultrasound viewport -->
+      <div class="panel">
+        <h2>Live Ultrasound Feed <span class="n">/ computer vision layer</span></h2>
+        <div class="viewport-wrap">
+          <canvas id="scan" width="640" height="420"></canvas>
+        </div>
+
+        <div class="guidance-banner">
+          <div>
+            <div class="txt" id="guideTxt">Place the probe on the torso to begin.</div>
+            <div class="sub" id="guideSub">Reinforcement-learning guidance policy (simulated)</div>
+          </div>
+          <button class="speak-btn" id="speakBtn" title="Play voice guidance">🔊 Speak</button>
+        </div>
+
+        <div class="quality-row">
+          <span class="label">IMAGE QUALITY</span>
+          <div class="meter"><div id="qualBar" style="width:0%;background:var(--red);"></div></div>
+          <span class="quality-val" id="qualVal">0%</span>
+        </div>
+
+        <div class="capture-row">
+          <button class="capture-btn" id="captureBtn" disabled>Capture &amp; Diagnose</button>
+        </div>
+        <div class="capture-note" id="captureNote">Hold quality above 80% for 1.5s to unlock capture.</div>
+      </div>
+
+      <!-- RIGHT: telemetry -->
+      <div class="panel">
+        <h2>CV Landmark Detection <span class="n">/ per-frame</span></h2>
+        <div id="landmarks"></div>
+        <h2 style="margin-top:16px;">System Telemetry</h2>
+        <div class="kv"><span class="k">Model — Vision</span><span class="v">TinyViT-Lite 4.2MB</span></div>
+        <div class="kv"><span class="k">Model — Diagnosis</span><span class="v">MobileNet-CNN 6.8MB</span></div>
+        <div class="kv"><span class="k">Inference</span><span class="v">On-device (edge)</span></div>
+        <div class="kv"><span class="k">Est. power draw</span><span class="v">1.8 W</span></div>
+        <div class="kv"><span class="k">Battery runtime</span><span class="v">~9.5 hrs</span></div>
+        <div style="margin-top:10px;">
+          <span class="tech-badge">CV: anatomy + quality</span>
+          <span class="tech-badge">RL: probe guidance</span>
+          <span class="tech-badge">DL: hemorrhage detection</span>
+          <span class="tech-badge">LLM: report synthesis</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- DIAGNOSIS + REPORT -->
+    <div class="panel diag-section" id="diagPanel" style="display:none;">
+      <h2>Deep-Learning Diagnosis &amp; LLM Report <span class="n">/ post-capture</span></h2>
+      <div class="diag-grid">
+        <div>
+          <div class="kv"><span class="k">Finding</span><span class="v" id="dxFinding">—</span></div>
+          <div class="kv"><span class="k">Affected region</span><span class="v" id="dxRegion">—</span></div>
+          <div class="kv"><span class="k">Hemorrhage probability</span><span class="v" id="dxProb">—</span></div>
+          <div class="kv"><span class="k">Model confidence</span><span class="v" id="dxConf">—</span></div>
+          <div style="margin-top:12px;" id="triageBadgeWrap"></div>
+          <div class="kv" style="margin-top:10px;"><span class="k">Evacuation priority</span><span class="v" id="dxEvac">—</span></div>
+        </div>
+        <div>
+          <div class="report-box">
+            <span class="lbl">Standardized Field Report (LLM-generated)</span>
+            <div id="reportText">—</div>
+          </div>
+          <button class="send-btn" id="sendBtn">Queue report for field hospital →</button>
+        </div>
+      </div>
+      <div id="physicianReviewBox" style="margin-top:14px;padding:12px 14px;background:var(--panel-2);border:1px dashed var(--border);border-radius:8px;display:none;">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:8px;">
+          ⏸ Pipeline paused — this AI output is a recommendation only. In a real deployment, a supervising physician (on-site or remote) reviews the images and report before triage/evacuation proceeds.
+        </div>
+        <button class="pillbtn" id="physicianConfirmBtn" style="width:100%;">Simulate physician confirmation →</button>
+      </div>
+    </div>
+
+    <!-- CARE PATHWAY -->
+    <div class="panel pathway">
+      <h2>Care Pathway <span class="n">/ how diagnosis becomes treatment</span></h2>
+      <div class="path-track" id="pathTrack"></div>
+    </div>
+
+  </div>
+
+  <footer class="note">
+    <strong>About this prototype:</strong> This is an interactive concept demonstration built for a humanitarian engineering course project, not a functioning medical device.
+    The computer-vision, reinforcement-learning guidance, and deep-learning diagnosis modules are simulated with rule-based logic and scenario-scripted outputs
+    standing in for models that would be trained on real ultrasound datasets (e.g. FAST-exam corpora). Voice guidance uses your browser's built-in speech
+    synthesis, running entirely client-side — consistent with the project's offline, edge-AI design goal. No real patient data is used or collected.
+  </footer>
+</div>
+
+<script>
+/* ============================= CONTENT DATA ============================= */
+const ROLES = [
+  {id:'volunteer', label:'First-Aid Volunteer', hint:'Tip: keep the probe still for 2 seconds once the guidance banner turns steady green.'},
+  {id:'firefighter', label:'Firefighter / Rescue', hint:'Tip: the system works through gloves — pressure feedback compensates for reduced tactile sense.'},
+  {id:'medic', label:'Military Medic', hint:'Tip: capture triggers a standardized MEDEVAC-ready report you can hand off verbally or via radio.'},
+  {id:'ngo', label:'Red Cross / MSF Responder', hint:'Tip: multilingual voice guidance lets you talk the patient\'s family through the exam if needed.'},
+  {id:'emt', label:'Emergency Medical Technician (EMT)', hint:'Tip: the AI-suggested triage is a decision-support recommendation — treat it like a second opinion, not a final call.'}
+];
+
+const SCENARIOS = {
+  normal:{
+    label:'No Acute Injury (Control Case)',
+    target:{x:0.36,y:0.40}, idealAngle:70, idealPressure:55,
+    hasFinding:false, prob:0.05, region:'None detected', severity:'none',
+    findingText:'No free fluid or hemorrhage signature identified.'
+  },
+  abdominal:{
+    label:'Blast Injury — Abdominal (RUQ)',
+    target:{x:0.30,y:0.42}, idealAngle:65, idealPressure:60,
+    hasFinding:true, prob:0.91, region:"Hepatorenal recess (Morison's pouch)", severity:'severe',
+    findingText:'Anechoic (dark) stripe consistent with free intraperitoneal fluid.'
+  },
+  thoracic:{
+    label:'Gunshot Wound — Right Thoracic',
+    target:{x:0.66,y:0.24}, idealAngle:100, idealPressure:45,
+    hasFinding:true, prob:0.86, region:'Right pleural space', severity:'severe',
+    findingText:'Absent lung sliding with fluid collection, suggestive of hemothorax.'
+  },
+  pelvic:{
+    label:'Crush Injury — Pelvic',
+    target:{x:0.5,y:0.82}, idealAngle:30, idealPressure:50,
+    hasFinding:true, prob:0.74, region:'Pelvic cul-de-sac (Pouch of Douglas)', severity:'moderate',
+    findingText:'Small-to-moderate free fluid pocket posterior to the bladder.'
+  }
+};
+
+const LANDMARK_SETS = {
+  normal:['Liver edge','Diaphragm','Kidney (right)'],
+  abdominal:['Liver edge','Kidney (right)','Morison\'s pouch','Diaphragm'],
+  thoracic:['Rib shadow','Pleural line','Lung point'],
+  pelvic:['Bladder wall','Cul-de-sac','Uterus / prostate margin']
+};
+
+const I18N = {
+  'en-US':{ moveLeft:'Move probe left', moveRight:'Move probe right', moveUp:'Move probe up', moveDown:'Move probe down',
+    rotateCW:'Rotate probe clockwise', rotateCCW:'Rotate probe counter-clockwise',
+    morePressure:'Apply more pressure', lessPressure:'Ease off pressure', hold:'Hold steady — image quality excellent',
+    start:'Place the probe on the torso to begin.' },
+  'ko-KR':{ moveLeft:'프로브를 왼쪽으로 이동하세요', moveRight:'프로브를 오른쪽으로 이동하세요', moveUp:'프로브를 위로 이동하세요', moveDown:'프로브를 아래로 이동하세요',
+    rotateCW:'프로브를 시계 방향으로 회전하세요', rotateCCW:'프로브를 반시계 방향으로 회전하세요',
+    morePressure:'압력을 조금 더 주세요', lessPressure:'압력을 줄이세요', hold:'그대로 유지하세요 — 영상 품질 우수',
+    start:'스캔을 시작하려면 프로브를 몸통에 놓으세요.' },
+  'es-ES':{ moveLeft:'Mueva la sonda a la izquierda', moveRight:'Mueva la sonda a la derecha', moveUp:'Mueva la sonda hacia arriba', moveDown:'Mueva la sonda hacia abajo',
+    rotateCW:'Gire la sonda en sentido horario', rotateCCW:'Gire la sonda en sentido antihorario',
+    morePressure:'Aplique más presión', lessPressure:'Reduzca la presión', hold:'Mantenga firme — calidad de imagen excelente',
+    start:'Coloque la sonda sobre el torso para comenzar.' },
+  'fr-FR':{ moveLeft:'Déplacez la sonde vers la gauche', moveRight:'Déplacez la sonde vers la droite', moveUp:'Déplacez la sonde vers le haut', moveDown:'Déplacez la sonde vers le bas',
+    rotateCW:'Tournez la sonde dans le sens horaire', rotateCCW:'Tournez la sonde dans le sens antihoraire',
+    morePressure:"Appliquez plus de pression", lessPressure:'Relâchez la pression', hold:'Ne bougez plus — excellente qualité d\'image',
+    start:'Placez la sonde sur le torse pour commencer.' }
+};
+
+const PATHWAY_STEPS = ['Injury','AI-Guided Diagnosis','Physician Review','Triage','Evacuation','Hospital Prep','Surgery','Survival'];
+
+/* ============================= STATE ============================= */
+let state = {
+  scenario:'abdominal', lang:'en-US', role:'volunteer',
+  probe:{x:0.5,y:0.5,dragging:false}, angle:90, pressure:20,
+  quality:0, qualityHoldStart:null, captured:false, sending:false, online:false, stage:0
+};
+
+/* ============================= SETUP UI ============================= */
+const roleSel = document.getElementById('roleSel');
+ROLES.forEach(r=>{ const o=document.createElement('option'); o.value=r.id; o.textContent=r.label; roleSel.appendChild(o); });
+roleSel.value = state.role;
+roleSel.addEventListener('change', ()=>{ state.role = roleSel.value; updateRoleHint(); });
+
+const scenSel = document.getElementById('scenSel');
+Object.keys(SCENARIOS).forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=SCENARIOS[k].label; scenSel.appendChild(o); });
+scenSel.value = state.scenario;
+scenSel.addEventListener('change', ()=>{ state.scenario = scenSel.value; resetCapture(); });
+
+const langSel = document.getElementById('langSel');
+langSel.value = state.lang;
+langSel.addEventListener('change', ()=>{ state.lang = langSel.value; });
+
+function updateRoleHint(){
+  document.getElementById('roleHint').textContent = ROLES.find(r=>r.id===state.role).hint;
+}
+updateRoleHint();
+
+const connBtn = document.getElementById('connBtn');
+connBtn.addEventListener('click', ()=>{
+  state.online = !state.online;
+  connBtn.textContent = state.online ? '● ONLINE (uplink available)' : '● OFFLINE (Edge AI)';
+  connBtn.classList.toggle('active', !state.online);
+  document.getElementById('powerDot').classList.toggle('off', false);
+  updateSendButton();
+});
+
+document.getElementById('angle').addEventListener('input', e=>{ state.angle = +e.target.value; document.getElementById('angleVal').textContent = state.angle+'°'; });
+document.getElementById('pressure').addEventListener('input', e=>{ state.pressure = +e.target.value; document.getElementById('pressVal').textContent = state.pressure+'%'; });
+document.getElementById('angleVal').textContent = state.angle+'°';
+document.getElementById('pressVal').textContent = state.pressure+'%';
+
+/* ============================= CLOCK ============================= */
+function tickClock(){
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-GB');
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ============================= TORSO / PROBE CANVAS ============================= */
+const torso = document.getElementById('torso');
+const tctx = torso.getContext('2d');
+
+function drawTorso(){
+  const w = torso.width, h = torso.height;
+  tctx.clearRect(0,0,w,h);
+  // body silhouette
+  tctx.fillStyle = '#141f2c';
+  tctx.beginPath();
+  tctx.moveTo(w*0.5,h*0.02);
+  tctx.bezierCurveTo(w*0.15,h*0.05, w*0.08,h*0.35, w*0.14,h*0.6);
+  tctx.bezierCurveTo(w*0.18,h*0.85, w*0.25,h*0.98, w*0.5,h*0.99);
+  tctx.bezierCurveTo(w*0.75,h*0.98, w*0.82,h*0.85, w*0.86,h*0.6);
+  tctx.bezierCurveTo(w*0.92,h*0.35, w*0.85,h*0.05, w*0.5,h*0.02);
+  tctx.closePath(); tctx.fill();
+  tctx.strokeStyle = '#233246'; tctx.lineWidth = 1.5; tctx.stroke();
+
+  // rib guide lines
+  tctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  for(let i=1;i<5;i++){ tctx.beginPath(); tctx.moveTo(w*0.16, h*0.15*i); tctx.lineTo(w*0.84,h*0.15*i); tctx.stroke(); }
+
+  // target zone (ghost, only visible as a subtle ring guiding the user)
+  const sc = SCENARIOS[state.scenario];
+  const tx = sc.target.x*w, ty = sc.target.y*h;
+  tctx.beginPath(); tctx.arc(tx,ty,26,0,Math.PI*2);
+  tctx.strokeStyle = 'rgba(63,211,224,0.35)'; tctx.setLineDash([4,4]); tctx.lineWidth=1.5; tctx.stroke(); tctx.setLineDash([]);
+
+  // probe
+  const px = state.probe.x*w, py = state.probe.y*h;
+  tctx.save();
+  tctx.translate(px,py); tctx.rotate((state.angle-90)*Math.PI/180);
+  const dist = Math.hypot(state.probe.x-sc.target.x, state.probe.y-sc.target.y);
+  const near = dist < 0.09;
+  tctx.fillStyle = near ? '#3fd3e0' : '#e2b23c';
+  tctx.shadowColor = near ? '#3fd3e0' : 'transparent'; tctx.shadowBlur = near?14:0;
+  tctx.fillRect(-16,-8,32,16);
+  tctx.fillStyle = '#04141a';
+  tctx.fillRect(-3,-8,6,16);
+  tctx.restore();
+}
+
+function probePos(evt){
+  const rect = torso.getBoundingClientRect();
+  const cx = (evt.touches? evt.touches[0].clientX : evt.clientX) - rect.left;
+  const cy = (evt.touches? evt.touches[0].clientY : evt.clientY) - rect.top;
+  return { x: Math.min(1,Math.max(0, cx/rect.width)), y: Math.min(1,Math.max(0, cy/rect.height)) };
+}
+torso.addEventListener('mousedown', e=>{ state.probe.dragging=true; const p=probePos(e); state.probe.x=p.x; state.probe.y=p.y; });
+window.addEventListener('mousemove', e=>{ if(state.probe.dragging){ const p=probePos(e); state.probe.x=p.x; state.probe.y=p.y; }});
+window.addEventListener('mouseup', ()=> state.probe.dragging=false);
+torso.addEventListener('touchstart', e=>{ state.probe.dragging=true; const p=probePos(e); state.probe.x=p.x; state.probe.y=p.y; e.preventDefault();}, {passive:false});
+torso.addEventListener('touchmove', e=>{ if(state.probe.dragging){ const p=probePos(e); state.probe.x=p.x; state.probe.y=p.y; e.preventDefault(); }}, {passive:false});
+window.addEventListener('touchend', ()=> state.probe.dragging=false);
+
+/* ============================= ULTRASOUND SCAN CANVAS ============================= */
+const scan = document.getElementById('scan');
+const sctx = scan.getContext('2d');
+let noiseSeed = 0;
+
+function drawScan(){
+  const w = scan.width, h = scan.height;
+  sctx.fillStyle = '#010305'; sctx.fillRect(0,0,w,h);
+
+  // fan-shaped ultrasound sector
+  const apexX = w/2, apexY = -40, radius = h*1.15, spread = 0.55; // radians half-angle
+  sctx.save();
+  sctx.beginPath();
+  sctx.moveTo(apexX,apexY);
+  sctx.arc(apexX,apexY,radius, Math.PI/2-spread, Math.PI/2+spread);
+  sctx.closePath();
+  sctx.clip();
+
+  const quality = state.quality/100;
+  noiseSeed += 1;
+  // speckle noise field
+  const imgData = sctx.createImageData(w,h);
+  for(let i=0;i<imgData.data.length;i+=4){
+    const idx = i/4, x = idx%w, y = Math.floor(idx/w);
+    const distFromApex = Math.hypot(x-apexX,y-apexY)/radius;
+    let base = (Math.sin((x*0.11)+(noiseSeed*0.3))+Math.cos((y*0.09)-(noiseSeed*0.2)))*20;
+    let n = (Math.random()*40 - 20) + base;
+    let v = 40 + n*(1-distFromApex*0.4);
+    v = Math.max(0, Math.min(70, v));
+    imgData.data[i]=v; imgData.data[i+1]=v+6; imgData.data[i+2]=v+10; imgData.data[i+3]=255;
+  }
+  sctx.putImageData(imgData,0,0);
+
+  // anatomical structures fade in with quality
+  const sc = SCENARIOS[state.scenario];
+  sctx.globalAlpha = Math.min(1, quality*1.3);
+  // organ blob
+  sctx.fillStyle = 'rgba(120,140,150,0.35)';
+  sctx.beginPath(); sctx.ellipse(w*0.42,h*0.45,90,60,0.2,0,Math.PI*2); sctx.fill();
+  sctx.fillStyle = 'rgba(90,110,120,0.3)';
+  sctx.beginPath(); sctx.ellipse(w*0.62,h*0.6,70,50,-0.15,0,Math.PI*2); sctx.fill();
+
+  // pathology (free fluid / hemothorax) — only visible once quality decent and scenario has finding
+  if(sc.hasFinding){
+    sctx.globalAlpha = Math.min(1,(quality-0.4)*2);
+    if(quality>0.4){
+      sctx.fillStyle = 'rgba(4,6,8,0.9)';
+      sctx.beginPath();
+      sctx.ellipse(w*0.5,h*0.55,50*quality,22*quality,0.3,0,Math.PI*2);
+      sctx.fill();
+      sctx.strokeStyle = 'rgba(224,90,78,0.55)'; sctx.lineWidth=1.5; sctx.stroke();
+    }
+  }
+  sctx.globalAlpha = 1;
+
+  // sweep line
+  const sweepAngle = (Math.PI/2 - spread) + ((noiseSeed*0.04)%(spread*2));
+  sctx.strokeStyle = 'rgba(63,211,224,0.5)';
+  sctx.beginPath(); sctx.moveTo(apexX,apexY);
+  sctx.lineTo(apexX+radius*Math.cos(sweepAngle), apexY+radius*Math.sin(sweepAngle));
+  sctx.lineWidth=2; sctx.stroke();
+
+  sctx.restore();
+
+  // sector border
+  sctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  sctx.beginPath();
+  sctx.moveTo(apexX,apexY);
+  sctx.arc(apexX,apexY,radius, Math.PI/2-spread, Math.PI/2+spread);
+  sctx.closePath(); sctx.stroke();
+
+  // HUD text
+  sctx.fillStyle = 'rgba(63,211,224,0.8)';
+  sctx.font = '11px "IBM Plex Mono", monospace';
+  sctx.fillText('DEPTH 12cm   GAIN 58%   FPS 24', 12, h-14);
+  sctx.fillText(sc.label.toUpperCase(), 12, 18);
+
+  if(state.captured){
+    sctx.fillStyle = 'rgba(226,178,60,0.9)';
+    sctx.fillText('▣ FRAME CAPTURED', w-160, 18);
+  }
+}
+
+/* ============================= QUALITY / GUIDANCE ENGINE ============================= */
+function computeQuality(){
+  const sc = SCENARIOS[state.scenario];
+  const dx = state.probe.x - sc.target.x, dy = state.probe.y - sc.target.y;
+  const distErr = Math.min(1, Math.hypot(dx,dy)/0.35);
+  const angleErr = Math.min(1, Math.abs(state.angle - sc.idealAngle)/90);
+  const pressErr = Math.min(1, Math.abs(state.pressure - sc.idealPressure)/60);
+  const errAvg = distErr*0.55 + angleErr*0.25 + pressErr*0.2;
+  return { q: Math.max(0, Math.round((1-errAvg)*100)), dx, dy, angleErr, pressErr, distErr, sc };
+}
+
+function guidanceMessage(m){
+  const t = I18N[state.lang];
+  if(m.distErr > 0.35){
+    if(Math.abs(m.dx) > Math.abs(m.dy)) return m.dx>0 ? t.moveLeft : t.moveRight; // canvas x grows right; probe right of target -> move left
+    return m.dy>0 ? t.moveUp : t.moveDown;
+  }
+  if(m.angleErr > 0.25){
+    return (state.angle < m.sc.idealAngle) ? t.rotateCW : t.rotateCCW;
+  }
+  if(m.pressErr > 0.25){
+    return (state.pressure < m.sc.idealPressure) ? t.morePressure : t.lessPressure;
+  }
+  return t.hold;
+}
+
+function updateLandmarks(q){
+  const set = LANDMARK_SETS[state.scenario];
+  const container = document.getElementById('landmarks');
+  container.innerHTML = '';
+  set.forEach((name,i)=>{
+    const on = q >= 35 + i*15;
+    const div = document.createElement('div');
+    div.className = 'landmark' + (on?' on':'');
+    div.innerHTML = '<span class="dot"></span>' + name;
+    container.appendChild(div);
+  });
+}
+
+let lastSpokenMsg = '';
+function speak(text){
+  if(!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = state.lang; u.rate = 1.0;
+  window.speechSynthesis.speak(u);
+}
+document.getElementById('speakBtn').addEventListener('click', ()=> speak(document.getElementById('guideTxt').textContent));
+
+/* ============================= CAPTURE / DIAGNOSIS ============================= */
+const captureBtn = document.getElementById('captureBtn');
+captureBtn.addEventListener('click', runDiagnosis);
+
+function resetCapture(){
+  state.captured = false; state.qualityHoldStart = null; state.stage = 0; state.pendingStage = null;
+  document.getElementById('diagPanel').style.display = 'none';
+  document.getElementById('physicianReviewBox').style.display = 'none';
+  renderPathway();
+}
+
+function runDiagnosis(){
+  const sc = SCENARIOS[state.scenario];
+  const jitter = (Math.random()*0.06)-0.03;
+  const prob = Math.max(0, Math.min(0.99, sc.prob + jitter));
+  const conf = Math.round(80 + Math.random()*15);
+  state.captured = true;
+
+  document.getElementById('dxFinding').textContent = sc.hasFinding ? sc.findingText : 'No hemorrhage signature identified.';
+  document.getElementById('dxRegion').textContent = sc.region;
+  document.getElementById('dxProb').textContent = Math.round(prob*100) + '%';
+  document.getElementById('dxConf').textContent = conf + '%';
+
+  let triageClass, triageLabel, evac, finalStage;
+  if(sc.hasFinding && sc.severity==='severe' && prob>0.6){
+    triageClass='red'; triageLabel='IMMEDIATE'; evac='Priority 1 — evacuate now, alert surgical team';
+    finalStage = 4; // Injury, AI-Diagnosis, Physician Review, Triage done -> Evacuation active
+  } else if(sc.hasFinding && prob>0.4){
+    triageClass='yellow'; triageLabel='DELAYED'; evac='Priority 2 — evacuate within 60 minutes, monitor';
+    finalStage = 3;
+  } else {
+    triageClass='green'; triageLabel='MINIMAL'; evac='Priority 3 — routine transport, re-assess on arrival';
+    finalStage = 2;
+  }
+  // Pipeline pauses here: Triage/Evacuation stages are not applied until the
+  // physician confirmation button is clicked (see physicianConfirmBtn handler below).
+  state.stage = 1; // Injury done, AI-Guided Diagnosis done, Physician Review is next/active
+  state.pendingStage = finalStage;
+  document.getElementById('physicianReviewBox').style.display = 'block';
+  document.getElementById('physicianConfirmBtn').disabled = false;
+  document.getElementById('physicianConfirmBtn').textContent = 'Simulate physician confirmation →';
+  document.getElementById('triageBadgeWrap').innerHTML =
+    '<span class="triage-badge '+triageClass+'">● AI-SUGGESTED: '+triageLabel+'</span>'
+    + '<div style="font-family:var(--mono);font-size:11px;color:var(--dim-2);margin-top:6px;">⚠ Decision support only — physician confirmation required before treatment</div>';
+  document.getElementById('dxEvac').textContent = evac;
+
+  const roleLabel = ROLES.find(r=>r.id===state.role).label;
+  const reportText = sc.hasFinding
+    ? `Field ultrasound performed by ${roleLabel.toLowerCase()} using AI-guided acquisition. Findings consistent with ${sc.findingText.toLowerCase()} in the ${sc.region.toLowerCase()}. Estimated hemorrhage probability ${Math.round(prob*100)}% (model confidence ${conf}%). AI-suggested classification: ${triageLabel}. ${evac}. This is a decision-support recommendation, not a confirmed diagnosis — a supervising physician must review the images and this report before treatment is finalized. Report generated offline; will transmit automatically once connectivity is restored.`
+    : `Field ultrasound performed by ${roleLabel.toLowerCase()} using AI-guided acquisition. No free fluid or hemorrhage signature detected across scanned windows (confidence ${conf}%). AI-suggested classification: ${triageLabel}. Recommend routine monitoring and re-assessment if clinical status changes. Physician review still recommended to confirm this reading.`;
+  document.getElementById('reportText').textContent = reportText;
+
+  document.getElementById('diagPanel').style.display = 'block';
+  updateSendButton();
+  renderPathway();
+  speak(triageLabel + '. ' + evac);
+}
+
+document.getElementById('physicianConfirmBtn').addEventListener('click', ()=>{
+  if(state.pendingStage == null) return;
+  state.stage = state.pendingStage;
+  document.getElementById('physicianConfirmBtn').textContent = '✓ Confirmed by physician — triage & evacuation proceeding';
+  document.getElementById('physicianConfirmBtn').disabled = true;
+  renderPathway();
+});
+
+const sendBtn = document.getElementById('sendBtn');
+sendBtn.addEventListener('click', ()=>{
+  if(!state.captured) return;
+  if(state.online){
+    sendBtn.textContent = '✓ Report transmitted to field hospital';
+    state.stage = Math.max(state.stage,5);
+    renderPathway();
+  } else {
+    sendBtn.textContent = 'Queued — will send automatically once online';
+  }
+});
+function updateSendButton(){
+  sendBtn.classList.toggle('ready', state.captured && state.online);
+  if(state.captured && !state.online) sendBtn.textContent = 'Queued for transmission (offline) →';
+  if(!state.captured) sendBtn.textContent = 'Queue report for field hospital →';
+}
+
+/* ============================= PATHWAY ============================= */
+function renderPathway(){
+  const track = document.getElementById('pathTrack');
+  track.innerHTML = '';
+  PATHWAY_STEPS.forEach((label,i)=>{
+    const div = document.createElement('div');
+    let cls = 'step';
+    if(i===0) cls += ' done';
+    if(i>0 && i<=state.stage) cls += ' done';
+    if(i===state.stage+1 && state.captured) cls += ' active';
+    div.className = cls;
+    div.innerHTML = '<div class="bar"></div><div class="dot"></div><div class="label">'+label+'</div>';
+    track.appendChild(div);
+  });
+}
+renderPathway();
+
+/* ============================= MAIN LOOP ============================= */
+function loop(){
+  drawTorso();
+  const m = computeQuality();
+  state.quality = state.quality*0.7 + m.q*0.3; // smooth
+  const qRounded = Math.round(state.quality);
+  drawScan();
+
+  document.getElementById('qualVal').textContent = qRounded+'%';
+  const bar = document.getElementById('qualBar');
+  bar.style.width = qRounded+'%';
+  bar.style.background = qRounded>80 ? 'var(--green)' : qRounded>50 ? 'var(--amber)' : 'var(--red)';
+
+  const msg = guidanceMessage(m);
+  document.getElementById('guideTxt').textContent = msg;
+
+  updateLandmarks(qRounded);
+
+  if(qRounded >= 80){
+    if(state.qualityHoldStart===null) state.qualityHoldStart = performance.now();
+    const held = performance.now() - state.qualityHoldStart;
+    captureBtn.disabled = state.captured || held < 1500;
+    document.getElementById('captureNote').textContent = state.captured
+      ? 'Image captured — adjust probe and re-scan to try another window.'
+      : (held>=1500 ? 'Quality locked — ready to capture.' : 'Holding steady… '+Math.round(held/1500*100)+'%');
+  } else {
+    state.qualityHoldStart = null;
+    captureBtn.disabled = true;
+    document.getElementById('captureNote').textContent = 'Hold quality above 80% for 1.5s to unlock capture.';
+  }
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
